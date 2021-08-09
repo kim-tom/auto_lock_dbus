@@ -29,11 +29,10 @@ async def authenticate_rfid(loop):
     while True:
         rc522.id_ = None
         while rc522.id_ is None:
-            rc522.wait_for_tag(100) #ms
+            rc522.wait_for_tag(300) #ms
             await asyncio.sleep(0.01)
         if rc522.id_ in keys:
             break
-    print("RFID authenticated.")
     loop.stop()
 async def taken_key(loop):
     print("taken_key start")
@@ -41,7 +40,6 @@ async def taken_key(loop):
         await asyncio.sleep(0.1)
     while switch.is_closed(26):
         await asyncio.sleep(0.1)
-    print("taken_key finish")
     loop.stop()
 def door_opened():
     return switch.is_opened(2)
@@ -86,15 +84,17 @@ class Locked(State):
         task2 = asyncio.ensure_future(authenticate_rfid(loop))
         loop.run_forever()
         if task1.done():
+            print("Key taken.")
             self.exit_proc_flag.add("GHOME")
         if task2.done():
-            self.exit_proc_flag.add("LINE")
+            print("RFID authenticated.")
+            if time.time() - self.timer > NOTIFTY_INTERVAL:
+                self.exit_proc_flag.add("LINE")
         return "UNLOCKED"
     def entry_proc(self):
         print("Lock!")
         self.reset()
         ds3225.set_pos(self.deg)
-        self.had_key = False
     def exit_proc(self):
         if("LINE" in self.exit_proc_flag):
             asyncio.get_event_loop().run_in_executor(None, line.broadcast, "ただいま帰ったでござる。")
@@ -110,12 +110,11 @@ class Door:
         self.locked = Locked()
         self.states = {self.locked.name: self.locked, self.unlocked.name: self.unlocked}
         self.state = self.unlocked
-        self.state.entry_proc()
     def update_state(self):
+        self.state.entry_proc()
         next_state = self.state.wait_for_next_state()
         self.state.exit_proc()
         self.state = self.states[next_state]
-        self.state.entry_proc()
 
 LED_PIN = 17
 GPIO.setmode(GPIO.BCM)
