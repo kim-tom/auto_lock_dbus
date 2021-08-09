@@ -30,16 +30,16 @@ async def authenticate_rfid(loop):
         rc522.id_ = None
         while rc522.id_ is None:
             rc522.wait_for_tag(300) #ms
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0)
         if rc522.id_ in keys:
             break
     loop.stop()
 async def taken_key(loop):
     print("taken_key start")
     while switch.is_opened(26):
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
     while switch.is_closed(26):
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
     loop.stop()
 def door_opened():
     return switch.is_opened(2)
