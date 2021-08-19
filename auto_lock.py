@@ -26,13 +26,10 @@ keys = set(keys)
 
 async def authenticate_rfid(loop):
     print("RFID start")
-    while True:
-        rc522.id_ = None
-        while rc522.id_ is None:
-            rc522.wait_for_tag(300) #ms
-            await asyncio.sleep(0)
-        if rc522.id_ in keys:
-            break
+    rc522.id_ = None
+    while rc522.id_ not in keys:
+        rc522.wait_for_tag(250) #ms
+        await asyncio.sleep(0)
     loop.stop()
 async def taken_key(loop):
     print("taken_key start")
@@ -41,7 +38,7 @@ async def taken_key(loop):
     while switch.is_closed(26):
         await asyncio.sleep(0)
     loop.stop()
-def door_opened():
+def is_door_opened():
     return switch.is_opened(2)
 class State:
     def next_state(self):
@@ -60,7 +57,7 @@ class Unlocked(State):
     def wait_for_next_state(self):
         print("wait for UNLOCKED_TIME start")
         while (time.time() - self.timer) < UNLOCKED_TIME:
-            if door_opened():
+            if is_door_opened():
                 self.reset()
             time.sleep(1)
         print("wait for UNLOCKED_TIME finish")
@@ -80,16 +77,22 @@ class Locked(State):
         self.exit_proc_flag = set()
     def wait_for_next_state(self):
         loop = asyncio.get_event_loop()
+        print(asyncio.Task.all_tasks(loop))
         task1 = asyncio.ensure_future(taken_key(loop))
         task2 = asyncio.ensure_future(authenticate_rfid(loop))
         loop.run_forever()
         if task1.done():
             print("Key taken.")
             self.exit_proc_flag.add("GHOME")
+        else:
+            task1.cancel()
         if task2.done():
             print("RFID authenticated.")
             if time.time() - self.timer > NOTIFTY_INTERVAL:
+                print("LINE will be sent.")
                 self.exit_proc_flag.add("LINE")
+        else:
+            task2.cancel()
         return "UNLOCKED"
     def entry_proc(self):
         print("Lock!")
